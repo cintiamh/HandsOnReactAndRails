@@ -127,4 +127,93 @@ Don't forget the `.`, it tells the `docker build` to look in the current directo
 $ docker run docker-whale
 ```
 
+## Compose and Rails
+
+https://docs.docker.com/compose/rails/
+
+Create the following files:
+
+Dockerfile
+```
+FROM ruby:2.3.3
+RUN apt-get update -qq && apt-get install -y build-essential libpq-dev nodejs
+RUN mkdir /myapp
+WORKDIR /myapp
+ADD Gemfile /myapp/Gemfile
+ADD Gemfile.lock /myapp/Gemfile.lock
+RUN bundle install
+ADD . /myapp
+```
+
+Gemfile (this will be replaced)
+```
+source 'https://rubygems.org'
+gem 'rails', '5.0.0.1'
+```
+
+Gemfile.lock (empty file)
+
+docker-compose.yml
+```
+version: '2'
+services:
+  db:
+    image: postgres
+  web:
+    build: .
+    command: bundle exec rails s -p 3000 -b '0.0.0.0'
+    volumes:
+      - .:/myapp
+    ports:
+      - "3000:3000"
+    depends_on:
+      - db
+```
+
+Build the project:
+
+```
+$ docker-compose run web rails new . --force --database=postgresql --skip-bundle
+```
+
+If you edit `Gemfile`, you will need to build the image again.
+
+```
+$ docker-compose build
+```
+
+### Connect the database
+
+Instead of the localhost database, you need to point to the postgres image.
+
+config/database.yml
+```
+development: &default
+  adapter: postgresql
+  encoding: unicode
+  database: myapp_development
+  pool: 5
+  username: postgres
+  password:
+  host: db
+
+test:
+  <<: *default
+  database: myapp_test
+```
+
+You now can boot the app with
+
+```
+$ docker-compose up
+```
+
+Finally, you need to create a database. In another terminal, run:
+
+```
+$ docker-compose run web rails db:create
+```
+
+If you stop the example application and attempt to restart it, you might get the following error: web_1 | A server is already running. Check /myapp/tmp/pids/server.pid. One way to resolve this is to delete the file tmp/pids/server.pid, and then re-start the application with docker-compose up.
+
 [<< Back](README.md)
